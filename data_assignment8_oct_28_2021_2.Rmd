@@ -17,6 +17,7 @@ library(estimatr)
 library(haven)
 library(stargazer)
 library(effsize)
+library(dotwhisker)
 ```
 
 This week, we discussed the importance of intergroup contact in settings like neighborhoods, public transportation, and sports leagues. All of these studies ensured or inferred that intergroup contact actually took place. However, some researchers have studied the possibility that even \textit{imagined} contact with a member of an outgroup can change people's perception of that group. In this Data Exploration assignment we will explore two datasets derived from imagined intergroup contact experiments. In part one, you will look at data from a recent study conducted by Dong Wang, Iain Johnston (a professor in the Harvard Government Department) and Baoyu Wang. Wang et al. (2021) conducted an experiment on a group of Chinese students to determine if imagined social contact could reduce antipathy toward Japanese people. In part two, you will look at the results of our in-class survey, which tested whether imagined social contact with a member of one's less-preferred political party would change attitudes toward members of that party. You can do either part first, but you will probably find the exercise most valuable if you do some of each part.
@@ -58,7 +59,7 @@ Variable Name         | Variable Description
 \texttt{school\_major}  | Categorical variable denoting major in school; 1 = social sciences, 2 = humanities, 3 = sciences and engineering, 4 = law
 \texttt{PrejControl}  | Motivation to Control Prejudice index; an average of 17 items rated from 1 to 7 in which higher scores denote a greater motivation to control the expression of prejudice
 
-```{r}
+```{r, message = F, warning = F}
 # load the data
 ChinaJapan <- read_csv('ChinaJapanData.csv')
 ```
@@ -68,10 +69,32 @@ ChinaJapan <- read_csv('ChinaJapanData.csv')
 ### Part a
 When surveys ask a number of questions to try and measure the same underlying concept, it is common to make a summary index by taking the average of all these items. **Create new variables for the average affective feeling toward Japanese people, the average affective feeling toward Chinese people, and the average difference between the two.** 
 
+```{r}
+
+ChinaJapan <- ChinaJapan %>% 
+  mutate(avg_aff_Japanese = (JapanPos + JapanWarm + JapanAdmire + JapanRespect)/4,
+         avg_aff_Chinese = (ChinaPos + ChinaWarm + ChinaAdmire + ChinaRespect)/4) %>% 
+  mutate(avg_diff_aff = avg_aff_Chinese - avg_aff_Japanese)
+
+```
+
 
 ### Part b
 
 **For at least one of the individual affect items and all three affect averages you created in part a (China, Japan, and the difference between them), report mean values for the treatment and control groups, an estimate of the difference between those groups, and the results of a test for statistical significance. Did imagined social contact change subjects' affect toward Japanese people? Chinese people? What about their affective polarization?**
+
+```{r}
+
+ChinaJapan %>% 
+  group_by(treated) %>% 
+  summarize(mean(avg_aff_Chinese),
+            mean(avg_aff_Japanese),
+            mean(avg_diff_aff),
+            mean(PosDiff))
+
+t.test(ChinaJapan$avg_diff_aff, ChinaJapan$treated)
+
+```
 
 
 ### Part c
@@ -130,15 +153,44 @@ ggplot(treatment_effect_plot_data, mapping=aes(x=factor(outcomes, levels = outco
 
 Pick one of the two average difference variables (\texttt{AffectDiff\_avg} or \texttt{ID\_diff\_avg}) to use as a dependent variable for this question. Then **pick at least two of the control variables and write hypotheses about how they would affect your chosen dependent variable.** Do this before you do part b of this question.
 
+**ANSWER:** *For my dependent variable, I'll use the average overall difference in affect toward Chinese and Japanese people. For the first independent variable, I'll use *`freetrade`*; I would posit that this would negatively correlate with the dependent variable, meaning those who are pro-free trade would be more like to see Japanese and Chinese people on the same standing. For the second independent variable, I'll use* `school_major`*, though I'll modify it such that* `1` *corresponds with "studied humanities or social sciences" and* `0` *indicates that they studied something else. I would expect the same relationship as with free trade, given these majors are correlated with lower SDO.*
+
 
 ### Part b
 
 **Use multiple regression to test your hypotheses. Be sure to include your selected control variables and the treatment variable at a minimum, bu the exact form of the model is up to you. Report and interpret the regression coefficients in the context of your hypotheses.**
 
+```{r, message = F, warning = F}
+
+mod = lm(avg_diff_aff ~ freetrade + school_major + treated, 
+         data = ChinaJapan %>% mutate(school_major = ifelse(school_major %in% c(1, 2), 1, 0)))
+stargazer(mod, type = "text")
+
+mod = lm(avg_diff_aff ~ gender + jpfriend + treated, 
+         data = ChinaJapan)
+stargazer(mod, type = "text")
+
+```
+
+**ANSWER:** *The treatment variable for my first model had a coefficient of -0.624 and was statistically significant at the p < 0.05 level, meaning we can be 95% confident that the treatment leads to a 0.624 reduction in the average affect difference between the in- and outgroup. The other variables I chose,* `freetrade` *and the modified* `school_major`*, were indeed negatively correlated but not statistically significant. Interesting, I tried variables that might be more significantly correlated, like having a Japanese friend,* `jpfriend`*, and* `gender`*, but these were also not significant. It seems that only the treatment variable had an impact.* 
 
 
 ### Part c
 Coefficient plots can be a good way to display main results from a regression in a way that is visually easier to interpret than a table. They are very similar to the treatment effect plots we made in the previous question. **Make a coefficient plot with the point estimates and 95\% confidence intervals for all of your regression coefficients other than the intercept. Be sure to include some kind of line at zero to aid interpretation of statistical significance.** Take a look at p. 5 of Brown et al. (2021) from this week's reading for an example of a coefficient plot (although note that that is plotting one regression coefficient across multiple regression specifications; we're asking you to plot multiple regression coefficients from one regression model).
+
+```{r}
+
+mod = lm(avg_diff_aff ~ freetrade + school_major + treated, 
+         data = ChinaJapan %>% mutate(school_major = ifelse(school_major %in% c(1, 2), 1, 0)))
+dwplot(mod, vline = geom_vline(
+           xintercept = 0,
+           colour = "grey60",
+           linetype = 2
+       ))
+
+```
+
+**ANSWER:** *I used the* `dotwhisker` *package to do this.*
 
 
 # Part Two: Harvard Students and Perception of Members of the Other Party
@@ -194,7 +246,7 @@ Variable Name         | Variable Description
 \texttt{IdentityDiff\_avg}  | Average difference in identity ratings between in-party and out-party
 
 
-```{r}
+```{r, message = F, warning = F}
 # load the data
 ClassExperiment <- read_csv('Oct28ClassData.csv')
 ```
@@ -203,6 +255,32 @@ ClassExperiment <- read_csv('Oct28ClassData.csv')
 ## Question 4 
 ### Part a 
 **For at least one of the individual affect items, the in-party and out-party affect averages, and the average affect difference, report average values for the treatment and control groups, an estimate of the difference between those groups, and the results of a test for statistical significance. Did imagined social contact change your classmates' affect toward members of the opposing party? Their own party? What about their affective polarization?**
+
+```{r, message = F, warning = F}
+
+ClassExperiment <- ClassExperiment %>% 
+  mutate(avg_aff_in_party = ifelse(ClosestParty == "the Republican party", 
+                                  (RepublicanAffect_1 + RepublicanAffect_2 + 
+                                   RepublicanAffect_3 + RepublicanAffect_4)/4,
+                                  (DemocraticAffect_1 + DemocraticAffect_2 + 
+                                   DemocraticAffect_3 + DemocraticAffect_4)/4), 
+         avg_aff_out_party = ifelse(ClosestParty == "the Republican party", 
+                                   (DemocraticAffect_1 + DemocraticAffect_2 + 
+                                    DemocraticAffect_3 + DemocraticAffect_4)/4,
+                                   (RepublicanAffect_1 + RepublicanAffect_2 + 
+                                    RepublicanAffect_3 + RepublicanAffect_4)/4)) %>%
+  filter(!is.na(avg_aff_in_party), !is.na(avg_aff_out_party)) %>% 
+  mutate(avg_diff_aff = avg_aff_in_party - avg_aff_out_party)
+
+ClassExperiment %>% 
+  group_by(Treated) %>% 
+  summarize(mean(avg_aff_in_party),
+            mean(avg_aff_out_party),
+            mean(avg_diff_aff))
+
+t.test(ClassExperiment$avg_diff_aff, ClassExperiment$Treated)
+
+```
 
 
 ### Part b
@@ -217,6 +295,42 @@ ClassExperiment <- read_csv('Oct28ClassData.csv')
 ## Question 6: Data Science Question
 
 We have not yet asked you to use the free response data, which takes the form of unstructured text. With this question, we challenge you to find a creative way to use this data. **To structure your work, first suggest a hypothesis that could be investigated using the text data and the other data from the experiment. Second, implement a method to use the text data to test this hypothesis. Your method can involve automated or manual processing of the text.** You might consider using a function like \texttt{nchar} to characterize the length of response or a package like (\texttt{stm})[https://cran.r-project.org/web/packages/stm/index.html] to do more sophisticated content analysis.
+
+```{r, warning = F, message = F}
+library(tidytext)
+library(janeaustenr)
+
+austen_books()
+
+nrc_positive <- get_sentiments("nrc") %>% 
+  filter(sentiment == "positive") %>% 
+  mutate(positive = 1)
+nrc_negative <- get_sentiments("nrc") %>% 
+  filter(sentiment == "negative") %>% 
+  mutate(positive = 0)
+
+sentiments <- nrc_positive %>% 
+  rbind(nrc_negative)
+
+ClassExperiment.sentiments <- ClassExperiment %>% 
+  mutate(participant = row_number()) %>% 
+  unite("text", ControlScenario_1:`TreatmentScenario _3`, sep = " ", na.rm = TRUE) %>% 
+  unnest_tokens(word, text) %>% 
+  inner_join(sentiments, by = "word") %>% 
+  group_by(participant) %>%
+  summarize(treated = mean(Treated),
+            avg_aff_in_party = mean(avg_aff_in_party),
+            avg_aff_out_party = mean(avg_aff_out_party),
+            avg_diff_aff = mean(avg_diff_aff),
+            avg_sentiment = mean(positive)) %>% 
+  ungroup()
+
+mod = lm(avg_diff_aff ~ avg_sentiment + treated, data = ClassExperiment.sentiments)
+stargazer(mod, type = "text")
+
+```
+
+**ANSWER:** *I decided to conduct sentiment analysis on the responses. First, I combined the responses into one cell and split them by word, creating a large table. I then joined the table to one I created with all positive and negative words from the* `nrc` *index. This obviously eliminated plenty of words and participants, but I continued. Then I summarized average sentiment by participant, keeping the* `treated` *and average difference variables around. Finally, I conducted a regression using the treatment variable and average sentiment, though both were insignificant, likely due to the fact that in the process of analyzing the text, I eliminated many participants as the prompt didn't necessarily call for using descriptive phrases and adjectives.*
 
 
 ## Question 7
